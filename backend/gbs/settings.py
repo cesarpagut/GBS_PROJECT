@@ -9,8 +9,11 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
-
+import os
+from dotenv import load_dotenv
 from pathlib import Path
+
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -19,8 +22,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-#w&=yb**$v#&ds7jz88@ay98!!nf9it8)kd@$0-u3pt49vy=g0'
+
+SECRET_KEY = os.getenv('SECRET_KEY')
+DEBUG = os.getenv('DEBUG') == 'True'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -38,6 +42,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    
 
     # Librerías de terceros
     'rest_framework',
@@ -149,9 +154,10 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Le dice a Django que use nuestro modelo 'Usuario' para toda la autenticación.
 AUTH_USER_MODEL = 'users.Usuario'
 # <<<--- FIN DE LA CORRECCIÓN --->>>
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173", # La dirección de tu frontend de React/Vite
-]
+CORS_ALLOW_ALL_ORIGINS = True # Para desarrollo
+#CORS_ALLOWED_ORIGINS = [
+ #   "http://localhost:5173", # La dirección de tu frontend de React/Vite
+#]
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
