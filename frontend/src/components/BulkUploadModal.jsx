@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import apiClient from '../services/api';
 
-function BulkUploadModal({ onClose, onSuccess }) {
+function BulkUploadModal({ onClose, onSuccess, clinicaId }) {
     const [file, setFile] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
@@ -21,15 +21,20 @@ function BulkUploadModal({ onClose, onSuccess }) {
         const formData = new FormData();
         formData.append('file', file);
 
+        if (clinicaId) {
+            formData.append('clinica_id', clinicaId);
+        }
+
         try {
-            const response = await apiClient.post('/inventory/equipos/bulk_upload/', formData, {
+            const response = await apiClient.post('/equipos/bulk_upload/', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
             alert(response.data.message);
             onSuccess();
             onClose();
         } catch (err) {
-            setError(err.response?.data?.error || 'Ocurrió un error al subir el archivo.');
+            const errorMessage = err.response?.data?.error || err.response?.data?.message || 'Ocurrió un error al subir el archivo.';
+            setError(errorMessage);
         } finally {
             setIsSubmitting(false);
         }
@@ -45,7 +50,7 @@ function BulkUploadModal({ onClose, onSuccess }) {
                 <form onSubmit={handleSubmit}>
                     <div className="modal-body">
                         <p>Selecciona un archivo Excel (.xlsx) para cargar múltiples hojas de vida.</p>
-                        <p><strong>Importante:</strong> El archivo debe contener exactamente las siguientes columnas en este orden:</p>
+                        <p><strong>Importante:</strong> El archivo debe contener exactamente las siguientes columnas:</p>
                         <ul className="column-list">
                             <li>nombre_equipo</li>
                             <li>marca</li>
@@ -73,4 +78,5 @@ function BulkUploadModal({ onClose, onSuccess }) {
         </div>
     );
 }
+
 export default BulkUploadModal;

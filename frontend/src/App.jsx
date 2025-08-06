@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import AuthContext from './context/AuthContext';
 import SessionTimeoutModal from './components/SessionTimeoutModal'; // Importamos el modal
+//import PdfGenerator from './PdfGenerator';
 
 // Creamos un componente interno para poder acceder al contexto
 const AppContent = () => {
@@ -25,9 +26,10 @@ const AppContent = () => {
 
 function App() {
   return (
-    <AuthProvider>
+      <AuthProvider>
       <AppContent />
-    </AuthProvider>
+      </AuthProvider>
+
   );
 }
 

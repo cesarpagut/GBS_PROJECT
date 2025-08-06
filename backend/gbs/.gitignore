@@ -1,0 +1,13 @@
+# Archivo: .gitignore
+
+# Ignorar el archivo de variables de entorno locales
+.env
+
+# Otras cosas comunes que se deben ignorar en proyectos de Python/Django
+__pycache__/
+*.pyc
+/venv/
+/env/
+db.sqlite3
+/media/
+/static_root/

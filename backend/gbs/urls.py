@@ -1,24 +1,35 @@
 from django.contrib import admin
 from django.urls import path, include
-# --- INICIO DE LA SECCIÓN A VERIFICAR ---
 from django.conf import settings
 from django.conf.urls.static import static
-# --- FIN DE LA SECCIÓN A VERIFICAR ---
+from rest_framework.routers import DefaultRouter
 
-from rest_framework_simplejwt.views import (TokenObtainPairView,TokenRefreshView,)
+# Importamos las vistas directamente para construir las rutas aquí
+from users.views import ClinicaViewSet
+from inventory.views import EquipoBiomedicoViewSet
+
+# --- FIX DEFINITIVO: Se crea un único router principal ---
+# Esto elimina la necesidad de archivos urls.py en cada app y previene la recursión.
+router = DefaultRouter()
+router.register(r'clinicas', ClinicaViewSet, basename='clinica')
+router.register(r'equipos', EquipoBiomedicoViewSet, basename='equipo')
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('api/', include('users.urls')),
-    path('api/inventory/', include('inventory.urls')),
+    
+    # --- Rutas de la API ---
+    # Se incluyen las rutas generadas por el router bajo el prefijo /api/
+    # Esto nos dará: /api/clinicas/ y /api/equipos/
+    path('api/', include(router.urls)),
+    
+    # --- Rutas de Autenticación ---
+    # Se agrupan todas las rutas de Djoser bajo /api/auth/
+    # Esto nos dará: /api/auth/users/, /api/auth/users/me/, /api/auth/jwt/create/ etc.
+    path('api/auth/', include('djoser.urls')),
+    path('api/auth/', include('djoser.urls.jwt')),
 ]
 
-# --- INICIO DE LA SECCIÓN A VERIFICAR ---
-# Esta línea es crucial. SOLO funciona cuando DEBUG = True en settings.py.
-# Le dice a Django: "Cuando estés en modo de desarrollo, si alguien pide una URL
-# que empieza con /media/, busca el archivo correspondiente en la carpeta MEDIA_ROOT".
+# Servir archivos multimedia en modo de desarrollo
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-# --- FIN DE LA SECCIÓN A VERIFICAR ---

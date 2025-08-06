@@ -1,9 +1,10 @@
 from django.db import models
 from django.conf import settings
 from users.models import Clinica
+from django.utils import timezone
 
 class EquipoBiomedico(models.Model):
-    # --- Clasificaciones y Estados ---
+    # --- Clasificaciones y Estados (sin cambios) ---
     class ClasificacionRiesgo(models.TextChoices):
         CLASE_I = 'I', 'Clase I'
         CLASE_IIA = 'IIA', 'Clase IIa'
@@ -39,10 +40,12 @@ class EquipoBiomedico(models.Model):
 
     # --- Relación Principal ---
     clinica = models.ForeignKey(Clinica, on_delete=models.CASCADE, related_name='equipos')
-
     # --- Campos de Gestión ---
     hoja_vida_id = models.CharField(max_length=100, unique=True, blank=True)
     is_complete = models.BooleanField(default=False)
+    fecha_modificacion = models.DateTimeField(auto_now=True)
+    # --- NUEVO CAMPO DE VERSIÓN ---
+    version = models.PositiveIntegerField(default=1)
 
     # --- IDENTIFICACIÓN DEL EQUIPO ---
     nombre_equipo = models.CharField(max_length=255)
@@ -61,6 +64,7 @@ class EquipoBiomedico(models.Model):
     # --- INFORMACIÓN DE ADQUISICIÓN Y PROPIEDAD ---
     fecha_adquisicion = models.DateField(null=True, blank=True)
     forma_adquisicion = models.CharField(max_length=50, choices=FormaAdquisicion.choices, default=FormaAdquisicion.COMPRA_NUEVO)
+    fabricante = models.CharField(max_length=255, blank=True, default='')
     proveedor = models.CharField(max_length=255, blank=True, default='')
     factura = models.FileField(upload_to='facturas/', blank=True, null=True)
     precio_no_registra = models.BooleanField(default=False)
@@ -99,34 +103,57 @@ class EquipoBiomedico(models.Model):
     def _is_field_complete(self, field_name):
         value = getattr(self, field_name)
         if isinstance(value, models.fields.files.FieldFile):
-             return bool(value)
+            return bool(value)
         return value is not None and str(value).strip() != '' and value != 'N/A' and value != 'no requiere'
 
     def check_completeness(self):
-        critical_fields = [
-            'nombre_equipo', 'marca', 'modelo', 'serie', 'area_servicio', 'ubicacion',
-            'clasificacion_uso', 'fecha_adquisicion', 'forma_adquisicion',
-            'vida_util_anios', 'tecnologia_predominante', 'registro_sanitario',
-            'clasificacion_riesgo', 'precio', 'frecuencia_calibracion_meses'
+        # --- LÓGICA DE SEMAFORIZACIÓN CORREGIDA ---
+        basic_fields = [
+         'nombre_equipo', 'marca', 'modelo', 'serie',
+         'area_servicio', 'ubicacion', 'clasificacion_uso',
+         'fecha_adquisicion', 'forma_adquisicion', 'vida_util_anios',
+        'tecnologia_predominante'
         ]
-        
-        for field in critical_fields:
-            if not self._is_field_complete(field):
+        if not all(self._is_field_complete(field) for field in basic_fields):
+            return False
+
+        if self.registro_sanitario_aplica and not self._is_field_complete('registro_sanitario'):
+            return False
+
+        if not self.precio_no_registra and not self._is_field_complete('precio'):
+            return False
+            
+        tech_fields = [
+            ('voltaje_vdc', 'voltaje_vdc_na'), ('voltaje_vac', 'voltaje_vac_na'),
+            ('corriente', 'corriente_na'), ('potencia', 'potencia_na'),
+            ('frecuencia', 'frecuencia_na'), ('temperatura', 'temperatura_na'),
+            ('peso', 'peso_na')
+        ]
+        for field, na_field in tech_fields:
+            if not getattr(self, na_field) and not self._is_field_complete(field):
                 return False
+
+                if self.requiere_calibracion and not self._is_field_complete(self.frecuencia_calibracion_meses):
+                    return False
+            
         return True
 
     def save(self, *args, **kwargs):
-        if not self.pk and not self.hoja_vida_id:
+        is_new = self._state.adding
+        if is_new:
             last_equipo = EquipoBiomedico.objects.filter(clinica=self.clinica).order_by('id').last()
             next_id = (int(last_equipo.hoja_vida_id.split('-')[-1]) + 1) if last_equipo and '-' in last_equipo.hoja_vida_id else 1
             self.hoja_vida_id = f"HV-{self.clinica.id}-{next_id:04d}"
+        else:
+            # Incrementar la versión solo si no es un objeto nuevo
+            self.version += 1
         
         self.is_complete = self.check_completeness()
-
         super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.nombre_equipo} - {self.marca} ({self.serie})"
+
 
 class ParametroEntregado(models.Model):
     class TipoParametro(models.TextChoices):
@@ -142,10 +169,11 @@ class ParametroEntregado(models.Model):
     parametro = models.CharField(max_length=50, choices=TipoParametro.choices)
     rango_min = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     rango_max = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+
     def __str__(self):
         return f"{self.parametro} para {self.equipo.nombre_equipo}"
 
-# --- NUEVO MODELO PARA DOCUMENTOS ADJUNTOS ---
+
 class DocumentoAdjunto(models.Model):
     equipo = models.ForeignKey(EquipoBiomedico, on_delete=models.CASCADE, related_name='documentos')
     nombre = models.CharField(max_length=255, help_text="Ej: Manual de Usuario, Factura, Otro")
@@ -155,13 +183,12 @@ class DocumentoAdjunto(models.Model):
     def __str__(self):
         return f"{self.nombre} para {self.equipo.nombre_equipo}"
 
-# --- NUEVO MODELO PARA HISTORIAL DE CAMBIOS ---
+
 class HistorialCambios(models.Model):
     equipo = models.ForeignKey(EquipoBiomedico, on_delete=models.CASCADE, related_name='historial')
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
     fecha_modificacion = models.DateTimeField(auto_now_add=True)
     motivo_cambio = models.TextField()
-    # En el futuro, aquí se podría guardar un JSON con los campos que cambiaron.
-
+    
     def __str__(self):
         return f"Modificación en {self.equipo.nombre_equipo} por {self.usuario.email} el {self.fecha_modificacion}"

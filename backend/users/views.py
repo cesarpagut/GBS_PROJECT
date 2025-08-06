@@ -1,23 +1,12 @@
-from rest_framework import generics, permissions
-from .models import Usuario, Clinica
-from .serializers import UsuarioSerializer, ClinicaSerializer
+from rest_framework import viewsets, permissions
+from .models import Clinica
+from .serializers import ClinicaSerializer
 
-# --- Vistas para Clínicas ---
-class ClinicaListCreateAPIView(generics.ListCreateAPIView):
+class ClinicaViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Un ViewSet de solo lectura para ver las clínicas.
+    """
     queryset = Clinica.objects.all()
     serializer_class = ClinicaSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-# --- Vistas para Usuarios ---
-class UsuarioCreateAPIView(generics.CreateAPIView):
-    queryset = Usuario.objects.all()
-    serializer_class = UsuarioSerializer
-    permission_classes = [permissions.AllowAny]
-
-class UsuarioDetailAPIView(generics.RetrieveUpdateAPIView):
-    queryset = Usuario.objects.all()
-    serializer_class = UsuarioSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    
-    def get_object(self):
-        return self.request.user
+    # Solo los administradores (superusuarios) pueden ver la lista de clínicas.
+    permission_classes = [permissions.IsAdminUser]
